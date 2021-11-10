@@ -1,7 +1,7 @@
 # What?
 ESP-now to MQTT to Home assisstant garage door opener button
 
-# How
+# How?
 The software is mostly copy-paste from different examples, nothing special.
 
 The hardware is a barebones ESP8266 module with a 3.3V regulator and a pushbutton that connects VCC from my ebikebatterys USB-port. 
