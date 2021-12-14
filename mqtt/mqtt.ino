@@ -1,16 +1,20 @@
-
-*/
-
-
-
-#include <ESP8266WiFi.h>
+//#include <ESP8266WiFi.h> // ONLY ON ESP8266
+//#include <espnow.h> // ONLY ON ESP8266
+#include <WiFi.h>
+#include <FastLED.h>
 #include <PubSubClient.h>
 #include <SoftwareSerial.h>
 
+
+#define LED_PIN 18
+#define NUM_LEDS 1
+
+CRGB leds[NUM_LEDS];
+
 // Update these with values suitable for your network.
-const char* ssid = "...";
-const char* password = "...";
-const char* mqtt_server = "...";
+const char* ssid = "Tot..";
+const char* password = "u11..";
+const char* mqtt_server = "eng..";
 
 WiFiClient espClient;
 PubSubClient client(espClient);
@@ -26,6 +30,11 @@ int buff_idx = 0;
 int blinks = 1;
 unsigned long lastblink = 0;
 int blinklen = 1000;
+bool blink_status = 0;
+
+unsigned long previousMillis = 0;
+unsigned long interval = 10000;
+
 
 void setup_wifi() {
   delay(10);
@@ -95,17 +104,40 @@ void reconnect() {
 }
 
 void setup() {
-  pinMode(LED_BUILTIN, OUTPUT);     // Initialize the BUILTIN_LED pin as an output
   Serial.begin(115200);
+  Serial.println("setup()");
+
+  //pinMode(LED_BUILTIN, OUTPUT); // ONLY ON ESP8266
+  FastLED.addLeds<NEOPIXEL, LED_PIN>(leds, NUM_LEDS);
+  FastLED.setMaxPowerInVoltsAndMilliamps(5, 10);
+  FastLED.setBrightness(20);
+  FastLED.clear();
+  leds[0] = CRGB(255, 0, 0 );
+  FastLED.show();
+  
   setup_wifi();
   client.setServer(mqtt_server, 1883);
   client.setCallback(callback);
 
-  ESPserial.begin(115200);
+  ESPserial.begin(19200);
+
+  leds[0] = CRGB(0, 255, 0 );
+  FastLED.show();
 }
 
 void loop() {
+  unsigned long currentMillis = millis();
+  // if WiFi is down, try reconnecting every CHECK_WIFI_TIME seconds
+  if ((WiFi.status() != WL_CONNECTED) && (currentMillis - previousMillis >=interval)) {
+    Serial.print(millis());
+    Serial.println("Reconnecting to WiFi...");
+    WiFi.disconnect();
+    WiFi.reconnect();
+    previousMillis = currentMillis;
+  }
+  
   if (!client.connected()) {
+    Serial.println("Reconnecting to MQTT...");
     reconnect();
   }
   client.loop();
@@ -146,7 +178,13 @@ void loop() {
 
   if (blinks > 0 && (now - lastblink > blinklen)) {
     lastblink = now;
-    digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
+    blink_status = !blink_status;
+    //digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN)); // ONLY ON ESP8266
+    leds[0] = CRGB(WiFi.status() != WL_CONNECTED ? (blink_status ? 255 : 0) : 0, blink_status ? 255 : 0, blinks > 1 ? (blink_status ? 255 : 0) : 0);
+    //if (blinks > 1) {
+    //  leds[0] = CRGB(0, 0, blink_status ? 255 : 0);
+    //}
+    FastLED.show();
     blinks --;
     if (blinks == 0) {
       blinks = 1;
