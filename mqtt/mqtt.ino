@@ -14,10 +14,11 @@ CRGB leds[NUM_LEDS];
 // Update these with values suitable for your network.
 const char* ssid = "Tot..";
 const char* password = "u11..";
-const char* mqtt_server = "eng..";
+const char* mqtt_server = "192.168.1.4";
 
 WiFiClient espClient;
-PubSubClient client(espClient);
+//PubSubClient client(espClient);
+//PubSubClient client(mqtt_server, 1883, callback, espClient)
 unsigned long lastMsg = 0;
 #define MSG_BUFFER_SIZE	(50)
 char msg[MSG_BUFFER_SIZE];
@@ -34,6 +35,7 @@ bool blink_status = 0;
 
 unsigned long previousMillis = 0;
 unsigned long interval = 10000;
+unsigned long btn_sleep = 0;
 
 
 void setup_wifi() {
@@ -79,20 +81,26 @@ void callback(char* topic, byte* payload, unsigned int length) {
   */
 }
 
+PubSubClient client(mqtt_server, 1883, callback, espClient);
+
 void reconnect() {
   // Loop until we're reconnected
   while (!client.connected()) {
     Serial.print("Attempting MQTT connection...");
     // Create a random client ID
-    String clientId = "ESP8266Client-";
+    String clientId = "ESP";
     clientId += String(random(0xffff), HEX);
     // Attempt to connect
-    if (client.connect(clientId.c_str())) {
-      Serial.println("connected");
+    if (client.connect(clientId.c_str(), "mqtt", "r0xx4r")) {
+      Serial.print("connected to ");
+      Serial.print(mqtt_server);
+      Serial.print(" as ");
+      Serial.println(clientId);
       // Once connected, publish an announcement...
       client.publish("bikebuttonlars", "hello world");
       // ... and resubscribe
       client.subscribe("inTopic");
+      client.subscribe("$SYS/broker/uptime");
     } else {
       Serial.print("failed, rc=");
       Serial.print(client.state());
@@ -106,6 +114,8 @@ void reconnect() {
 void setup() {
   Serial.begin(115200);
   Serial.println("setup()");
+
+  pinMode(3, INPUT_PULLUP);
 
   //pinMode(LED_BUILTIN, OUTPUT); // ONLY ON ESP8266
   FastLED.addLeds<NEOPIXEL, LED_PIN>(leds, NUM_LEDS);
@@ -141,6 +151,12 @@ void loop() {
     reconnect();
   }
   client.loop();
+
+  if (!digitalRead(3) && btn_sleep < currentMillis) {
+    Serial.println("Button pressed, sending mqtt");
+    client.publish("bikebutton", "lars\n");
+    btn_sleep = currentMillis + 2000;
+  }
 
   unsigned long now = millis();
   if (now - lastMsg > 60000) {
@@ -191,4 +207,6 @@ void loop() {
       blinklen = 1000;
     }
   }
+
+  delay(10);
 }
